@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#前提条件：集群中所有主机具备基本配置ip，yum，所有的web服务器页面配置，所有web主机密码与下面$PASSWORD一致
+
+#使用客户端访问VIP，查看效果
+#此脚本在调度器上执行，作用：一键部署LVS-DR集群
+
+#VIP=192.168.4.12   虚拟IP，调度器和所有web上一致
+#DIP=192.168.4.2　　调度IP，调度器上的真实IP
+#RIP1=192.168.4.50  
+#RIP2=192.168.4.60
+
+#在当前目录下的data_lvs.conf按以上格式编辑数据
+#VIP、DIP可随意修改，RIP可随意添加
+#eg:RIP3=192.168.4.70  RIP4=192.168.4.80 ......
+
+PORT=`awk -F= '/PORT/{print $2}' data_lvs.conf`
+VIP=`awk -F= '/VIP/{print $2}' data_lvs.conf`
+RIPS=`awk -F= '/RIP/{print $2}' data_lvs.conf`
+PASSWORD=1
+
+#调用函数集
+source ./myfuns
+#调用密钥配对脚本
+source ./key_match
+
+
+#LVS_DR集群自动实现
+lvs_dr_auto (){
+
+#调度器eth0:0上配$VIP	
+proxy_eth0_0_create  $VIP     
+#实现调度器集群配置
+proxy_ipvsadm_create  $VIP  $PORT   
+
+#实现无密码远程
+for ip in $RIPS
+do
+ssh_copy_id $ip $PASSWORD
+done
+
+#实现所有web的配置
+all_web_config  $VIP
+
+#安全检测配置，有需要便打开注释
+#当某个web服务器坏了，自动从集群中剔除，如果修复了，自动添加至集群
+#web_secure_check $VIP $RIPS
+
+echo "集群搭建成功！！！"
+
+}
+
+lvs_dr_auto
+
